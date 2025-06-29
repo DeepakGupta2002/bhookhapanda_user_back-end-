@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - Order Analytics</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .card-chart {
+            height: 350px;
+        }
+
+        .order-status-pending {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+
+        .order-status-shipped {
+            background-color: #cce5ff;
+            color: #004085;
+        }
+
+        .order-status-delivered {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .order-status-cancelled {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        @media (max-width: 768px) {
+            .chart-container {
+                margin-bottom: 20px;
+            }
+
+            .table-responsive {
+                overflow-x: auto;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <nav id="sidebar" class="col-md-3 col-lg-2 d-md-block bg-dark sidebar collapse">
+                <div class="position-sticky pt-3">
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link active text-white" href="#">
+                                <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-white" href="#">
+                                <i class="fas fa-shopping-cart me-2"></i>Orders
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-white" href="#">
+                                <i class="fas fa-users me-2"></i>Customers
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-white" href="#">
+                                <i class="fas fa-box-open me-2"></i>Products
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-white" href="#">
+                                <i class="fas fa-chart-bar me-2"></i>Reports
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- Main Content -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+                <div
+                    class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <h1 class="h2">Order Analytics Dashboard</h1>
+                    <div class="btn-toolbar mb-2 mb-md-0">
+                        <div class="btn-group me-2">
+                            <button type="button" class="btn btn-sm btn-outline-secondary">Share</button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary">Export</button>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle">
+                            <i class="fas fa-calendar-alt me-1"></i>
+                            <span id="date-range-text">Last 7 days</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Date Range Filter -->
+                <div class="row mb-4">
+                    <div class="col-md-12">
+                        <div class="card">
+                            <div class="card-body">
+                                <form id="date-filter-form">
+                                    <div class="row">
+                                        <div class="col-md-3">
+                                            <label for="start-date" class="form-label">Start Date</label>
+                                            <input type="date" class="form-control" id="start-date">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label for="end-date" class="form-label">End Date</label>
+                                            <input type="date" class="form-control" id="end-date">
+                                        </div>
+                                        <div class="col-md-3 d-flex align-items-end">
+                                            <button type="submit" class="btn btn-primary">Apply Filter</button>
+                                        </div>
+                                        <div class="col-md-3 d-flex align-items-end">
+                                            <button type="button" id="reset-filter"
+                                                class="btn btn-outline-secondary">Reset</button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Row -->
+                <div class="row mb-4">
+                    <div class="col-md-8 chart-container">
+                        <div class="card card-chart">
+                            <div class="card-header">
+                                <h5>Daily Sales</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="salesChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 chart-container">
+                        <div class="card card-chart">
+                            <div class="card-header">
+                                <h5>Order Status Distribution</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="statusChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Order Management -->
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5>Order Management</h5>
+                                <div class="search-box">
+                                    <div class="input-group">
+                                        <input type="text" id="order-search" class="form-control"
+                                            placeholder="Search by user, item, or status">
+                                        <button class="btn btn-outline-secondary" type="button" id="search-button">
+                                            <i class="fas fa-search"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-hover" id="orders-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Order ID <i class="fas fa-sort ms-1 sort-icon" data-column="id"></i>
+                                                </th>
+                                                <th>Customer <i class="fas fa-sort ms-1 sort-icon"
+                                                        data-column="customer"></i></th>
+                                                <th>Date <i class="fas fa-sort ms-1 sort-icon" data-column="date"></i>
+                                                </th>
+                                                <th>Items</th>
+                                                <th>Amount <i class="fas fa-sort ms-1 sort-icon"
+                                                        data-column="amount"></i></th>
+                                                <th>Status <i class="fas fa-sort ms-1 sort-icon"
+                                                        data-column="status"></i></th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="orders-table-body">
+                                            <!-- Orders will be loaded here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <nav aria-label="Page navigation">
+                                    <ul class="pagination justify-content-center" id="pagination">
+                                        <!-- Pagination will be loaded here -->
+                                    </ul>
+                                </nav>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Order Details Modal -->
+    <div class="modal fade" id="orderDetailsModal" tabindex="-1" aria-labelledby="orderDetailsModalLabel"
+        aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="orderDetailsModalLabel">Order Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="order-details-content">
+                    <!-- Order details will be loaded here -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary" id="save-status-btn">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Custom JavaScript -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            // Global variables
+            let orders = [];
+            let currentPage = 1;
+            const itemsPerPage = 10;
+            let sortColumn = 'orderedAt';
+            let sortDirection = 'desc';
+            let currentOrderId = null;
+
+            // Initialize date filter with default values (last 7 days)
+            const endDate = new Date();
+            const startDate = new Date();
+            startDate.setDate(endDate.getDate() - 7);
+
+            document.getElementById('start-date').valueAsDate = startDate;
+            document.getElementById('end-date').valueAsDate = endDate;
+
+            // Initialize charts
+            const salesChartCtx = document.getElementById('salesChart').getContext('2d');
+            const statusChartCtx = document.getElementById('statusChart').getContext('2d');
+
+            let salesChart = new Chart(salesChartCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Daily Sales (₹)',
+                        data: [],
+                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        borderWidth: 2,
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            let statusChart = new Chart(statusChartCtx, {
+                type: 'pie',
+                data: {
+                    labels: ['Pending', 'Shipped', 'Delivered', 'Cancelled'],
+                    datasets: [{
+                        data: [0, 0, 0, 0],
+                        backgroundColor: [
+                            'rgba(255, 206, 86, 0.7)',
+                            'rgba(54, 162, 235, 0.7)',
+                            'rgba(75, 192, 192, 0.7)',
+                            'rgba(255, 99, 132, 0.7)'
+                        ],
+                        borderColor: [
+                            'rgba(255, 206, 86, 1)',
+                            'rgba(54, 162, 235, 1)',
+                            'rgba(75, 192, 192, 1)',
+                            'rgba(255, 99, 132, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right'
+                        }
+                    }
+                }
+            });
+
+            // Event listeners
+            document.getElementById('date-filter-form').addEventListener('submit', function (e) {
+                e.preventDefault();
+                fetchDataAndUpdateCharts();
+            });
+
+            document.getElementById('reset-filter').addEventListener('click', function () {
+                const endDate = new Date();
+                const startDate = new Date();
+                startDate.setDate(endDate.getDate() - 7);
+
+                document.getElementById('start-date').valueAsDate = startDate;
+                document.getElementById('end-date').valueAsDate = endDate;
+
+                fetchDataAndUpdateCharts();
+            });
+
+            document.getElementById('search-button').addEventListener('click', function () {
+                currentPage = 1;
+                renderOrdersTable();
+            });
+
+            document.getElementById('order-search').addEventListener('keyup', function (e) {
+                if (e.key === 'Enter') {
+                    currentPage = 1;
+                    renderOrdersTable();
+                }
+            });
+
+            document.querySelectorAll('.sort-icon').forEach(icon => {
+                icon.addEventListener('click', function () {
+                    const column = this.getAttribute('data-column');
+                    if (sortColumn === column) {
+                        sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        sortColumn = column;
+                        sortDirection = 'asc';
+                    }
+                    renderOrdersTable();
+                });
+            });
+
+            document.getElementById('save-status-btn').addEventListener('click', function () {
+                updateOrderStatus();
+            });
+
+            // Fetch data from API
+            async function fetchDataAndUpdateCharts() {
+                const startDate = document.getElementById('start-date').value;
+                const endDate = document.getElementById('end-date').value;
+
+                try {
+                    // Fetch orders data
+                    const response = await fetch(`http://localhost:5000/api/orders?startDate=${startDate}&endDate=${endDate}`);
+                    if (!response.ok) throw new Error('Network response was not ok');
+
+                    const data = await response.json();
+                    orders = data.orders; // Changed to access the 'orders' array in response
+
+                    // Update charts
+                    updateSalesChart(data.orders);
+                    updateStatusChart(data.orders);
+
+                    // Render orders table
+                    renderOrdersTable();
+
+                } catch (error) {
+                    console.error('Error fetching data:', error);
+                    alert('Failed to fetch data. Please try again later.');
+                }
+            }
+
+            // Update sales chart with new data
+            function updateSalesChart(orders) {
+                // Group orders by date and calculate total sales per day
+                const salesByDate = {};
+
+                orders.forEach(order => {
+                    const date = new Date(order.orderedAt).toLocaleDateString();
+                    if (!salesByDate[date]) {
+                        salesByDate[date] = 0;
+                    }
+                    salesByDate[date] += order.totalAmount;
+                });
+
+                // Sort dates chronologically
+                const sortedDates = Object.keys(salesByDate).sort((a, b) => {
+                    return new Date(a) - new Date(b);
+                });
+
+                // Update chart data
+                salesChart.data.labels = sortedDates;
+                salesChart.data.datasets[0].data = sortedDates.map(date => salesByDate[date]);
+                salesChart.update();
+            }
+
+            // Update status chart with new data
+            function updateStatusChart(orders) {
+                const statusCounts = {
+                    'Pending': 0,
+                    'Shipped': 0,
+                    'Delivered': 0,
+                    'Cancelled': 0
+                };
+
+                orders.forEach(order => {
+                    if (statusCounts.hasOwnProperty(order.orderStatus)) {
+                        statusCounts[order.orderStatus]++;
+                    }
+                });
+
+                // Update chart data
+                statusChart.data.datasets[0].data = [
+                    statusCounts.Pending,
+                    statusCounts.Shipped,
+                    statusCounts.Delivered,
+                    statusCounts.Cancelled
+                ];
+                statusChart.update();
+            }
+
+            // Render orders table with pagination
+            function renderOrdersTable() {
+                const searchTerm = document.getElementById('order-search').value.toLowerCase();
+                const filteredOrders = orders.filter(order => {
+                    return (
+                        order.userId.name.toLowerCase().includes(searchTerm) ||
+                        order.items.some(item => item.name.toLowerCase().includes(searchTerm)) ||
+                        order.orderStatus.toLowerCase().includes(searchTerm)
+                    );
+                });
+
+                // Sort orders
+                filteredOrders.sort((a, b) => {
+                    let valueA, valueB;
+
+                    switch (sortColumn) {
+                        case 'id':
+                            valueA = a._id;
+                            valueB = b._id;
+                            break;
+                        case 'customer':
+                            valueA = a.userId.name;
+                            valueB = b.userId.name;
+                            break;
+                        case 'orderedAt':
+                            valueA = new Date(a.orderedAt);
+                            valueB = new Date(b.orderedAt);
+                            break;
+                        case 'amount':
+                            valueA = a.totalAmount;
+                            valueB = b.totalAmount;
+                            break;
+                        case 'status':
+                            valueA = a.orderStatus;
+                            valueB = b.orderStatus;
+                            break;
+                        default:
+                            valueA = a._id;
+                            valueB = b._id;
+                    }
+
+                    if (valueA < valueB) return sortDirection === 'asc' ? -1 : 1;
+                    if (valueA > valueB) return sortDirection === 'asc' ? 1 : -1;
+                    return 0;
+                });
+
+                // Pagination
+                const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
+                const startIndex = (currentPage - 1) * itemsPerPage;
+                const paginatedOrders = filteredOrders.slice(startIndex, startIndex + itemsPerPage);
+
+                // Render table rows
+                const tbody = document.getElementById('orders-table-body');
+                tbody.innerHTML = '';
+
+                if (paginatedOrders.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center">No orders found</td></tr>';
+                } else {
+                    paginatedOrders.forEach(order => {
+                        const row = document.createElement('tr');
+
+                        // Calculate total items
+                        const totalItems = order.items.reduce((sum, item) => sum + item.quantity, 0);
+
+                        // Format date
+                        const orderDate = new Date(order.orderedAt);
+                        const formattedDate = orderDate.toLocaleDateString() + ' ' + orderDate.toLocaleTimeString();
+
+                        // Status badge
+                        let statusClass = '';
+                        switch (order.orderStatus) {
+                            case 'Pending':
+                                statusClass = 'order-status-pending';
+                                break;
+                            case 'Shipped':
+                                statusClass = 'order-status-shipped';
+                                break;
+                            case 'Delivered':
+                                statusClass = 'order-status-delivered';
+                                break;
+                            case 'Cancelled':
+                                statusClass = 'order-status-cancelled';
+                                break;
+                        }
+
+                        row.innerHTML = `
+                    <td>#${order._id.substring(18)}</td>
+                    <td>${order.userId.name}</td>
+                    <td>${formattedDate}</td>
+                    <td>${totalItems} items</td>
+                    <td>₹${order.totalAmount.toFixed(2)}</td>
+                    <td><span class="badge rounded-pill ${statusClass}">${order.orderStatus}</span></td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary view-order-btn" data-id="${order._id}">
+                            <i class="fas fa-eye"></i> View
+                        </button>
+                    </td>
+                `;
+
+                        tbody.appendChild(row);
+                    });
+                }
+
+                // Render pagination
+                renderPagination(totalPages);
+
+                // Add event listeners to view buttons
+                document.querySelectorAll('.view-order-btn').forEach(btn => {
+                    btn.addEventListener('click', function () {
+                        const orderId = this.getAttribute('data-id');
+                        showOrderDetails(orderId);
+                    });
+                });
+            }
+
+            // Render pagination controls (same as before)
+            function renderPagination(totalPages) {
+                const pagination = document.getElementById('pagination');
+                pagination.innerHTML = '';
+
+                if (totalPages <= 1) return;
+
+                // Previous button
+                const prevLi = document.createElement('li');
+                prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
+                prevLi.innerHTML = '<a class="page-link" href="#" aria-label="Previous"><span aria-hidden="true">&laquo;</span></a>';
+                prevLi.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    if (currentPage > 1) {
+                        currentPage--;
+                        renderOrdersTable();
+                    }
+                });
+                pagination.appendChild(prevLi);
+
+                // Page numbers
+                const maxVisiblePages = 5;
+                let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+                let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+                if (endPage - startPage + 1 < maxVisiblePages) {
+                    startPage = Math.max(1, endPage - maxVisiblePages + 1);
+                }
+
+                if (startPage > 1) {
+                    const firstLi = document.createElement('li');
+                    firstLi.className = 'page-item';
+                    firstLi.innerHTML = '<a class="page-link" href="#">1</a>';
+                    firstLi.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        currentPage = 1;
+                        renderOrdersTable();
+                    });
+                    pagination.appendChild(firstLi);
+
+                    if (startPage > 2) {
+                        const ellipsisLi = document.createElement('li');
+                        ellipsisLi.className = 'page-item disabled';
+                        ellipsisLi.innerHTML = '<a class="page-link" href="#">...</a>';
+                        pagination.appendChild(ellipsisLi);
+                    }
+                }
+
+                for (let i = startPage; i <= endPage; i++) {
+                    const pageLi = document.createElement('li');
+                    pageLi.className = `page-item ${i === currentPage ? 'active' : ''}`;
+                    pageLi.innerHTML = `<a class="page-link" href="#">${i}</a>`;
+                    pageLi.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        currentPage = i;
+                        renderOrdersTable();
+                    });
+                    pagination.appendChild(pageLi);
+                }
+
+                if (endPage < totalPages) {
+                    if (endPage < totalPages - 1) {
+                        const ellipsisLi = document.createElement('li');
+                        ellipsisLi.className = 'page-item disabled';
+                        ellipsisLi.innerHTML = '<a class="page-link" href="#">...</a>';
+                        pagination.appendChild(ellipsisLi);
+                    }
+
+                    const lastLi = document.createElement('li');
+                    lastLi.className = 'page-item';
+                    lastLi.innerHTML = `<a class="page-link" href="#">${totalPages}</a>`;
+                    lastLi.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        currentPage = totalPages;
+                        renderOrdersTable();
+                    });
+                    pagination.appendChild(lastLi);
+                }
+
+                // Next button
+                const nextLi = document.createElement('li');
+                nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
+                nextLi.innerHTML = '<a class="page-link" href="#" aria-label="Next"><span aria-hidden="true">&raquo;</span></a>';
+                nextLi.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    if (currentPage < totalPages) {
+                        currentPage++;
+                        renderOrdersTable();
+                    }
+                });
+                pagination.appendChild(nextLi);
+            }
+
+            // Show order details in modal
+            async function showOrderDetails(orderId) {
+                currentOrderId = orderId;
+                const order = orders.find(o => o._id === orderId);
+
+                if (!order) {
+                    alert('Order not found');
+                    return;
+                }
+
+                // Format date
+                const orderDate = new Date(order.orderedAt);
+                const formattedDate = orderDate.toLocaleDateString() + ' ' + orderDate.toLocaleTimeString();
+
+                // Calculate total items and amount
+                const totalItems = order.items.reduce((sum, item) => sum + item.quantity, 0);
+
+                // Build order items HTML
+                let itemsHtml = '';
+                order.items.forEach(item => {
+                    itemsHtml += `
+                <div class="row mb-2">
+                    <div class="col-6">${item.name} (x${item.quantity})</div>
+                    <div class="col-3 text-end">₹${item.price.toFixed(2)}</div>
+                    <div class="col-3 text-end">₹${(item.price * item.quantity).toFixed(2)}</div>
+                </div>
+            `;
+                });
+
+                // Build modal content
+                const modalContent = `
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <h6>Order Information</h6>
+                    <p><strong>Order ID:</strong> #${order._id.substring(18)}</p>
+                    <p><strong>Date:</strong> ${formattedDate}</p>
+                    <p><strong>Status:</strong> 
+                        <select class="form-select form-select-sm d-inline-block w-auto" id="order-status-select">
+                            <option value="Pending" ${order.orderStatus === 'Pending' ? 'selected' : ''}>Pending</option>
+                            <option value="Shipped" ${order.orderStatus === 'Shipped' ? 'selected' : ''}>Shipped</option>
+                            <option value="Delivered" ${order.orderStatus === 'Delivered' ? 'selected' : ''}>Delivered</option>
+                            <option value="Cancelled" ${order.orderStatus === 'Cancelled' ? 'selected' : ''}>Cancelled</option>
+                        </select>
+                    </p>
+                    <p><strong>Payment Method:</strong> ${order.paymentMethod}</p>
+                    <p><strong>Payment Status:</strong> ${order.paymentStatus}</p>
+                </div>
+                <div class="col-md-6">
+                    <h6>Customer Information</h6>
+                    <p><strong>Name:</strong> ${order.userId.name}</p>
+                    <p><strong>Email:</strong> ${order.userId.email}</p>
+                    <p><strong>Phone:</strong> ${order.userId.phone || 'N/A'}</p>
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-12">
+                    <h6>Shipping Address</h6>
+                    <p>
+                        ${order.userId.address}<br>
+                        ${order.userId.deliveryInstructions.join('<br>')}
+                    </p>
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-12">
+                    <h6>Order Items (${totalItems})</h6>
+                    <div class="border p-3">
+                        ${itemsHtml}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6 offset-md-6">
+                    <div class="border p-3">
+                        <div class="row mt-2 fw-bold">
+                            <div class="col-6">Total Amount:</div>
+                            <div class="col-6 text-end">₹${order.totalAmount.toFixed(2)}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            ${order.razorpayOrderId ? `
+            <div class="row mt-3">
+                <div class="col-12">
+                    <h6>Payment Details</h6>
+                    <p><strong>Razorpay Order ID:</strong> ${order.razorpayOrderId}</p>
+                    <p><strong>Razorpay Payment ID:</strong> ${order.razorpayPaymentId}</p>
+                </div>
+            </div>
+            ` : ''}
+        `;
+
+                document.getElementById('order-details-content').innerHTML = modalContent;
+
+                // Show modal
+                const modal = new bootstrap.Modal(document.getElementById('orderDetailsModal'));
+                modal.show();
+            }
+
+            // Update order status
+            async function updateOrderStatus() {
+                const newStatus = document.getElementById('order-status-select').value;
+
+                try {
+                    const response = await fetch(`http://localhost:5000/api/orders/${currentOrderId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ orderStatus: newStatus })
+                    });
+
+                    if (!response.ok) throw new Error('Failed to update order status');
+
+                    // Update local data
+                    const order = orders.find(o => o._id === currentOrderId);
+                    if (order) {
+                        order.orderStatus = newStatus;
+                    }
+
+                    // Update charts and table
+                    updateStatusChart(orders);
+                    renderOrdersTable();
+
+                    // Close modal
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('orderDetailsModal'));
+                    modal.hide();
+
+                    alert('Order status updated successfully');
+
+                } catch (error) {
+                    console.error('Error updating order status:', error);
+                    alert('Failed to update order status. Please try again.');
+                }
+            }
+
+            // Initial data load
+            fetchDataAndUpdateCharts();
+        });
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Manage Categories | Bhookha Panda</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <style>
+        .image-thumb {
+            width: 50px;
+            height: 50px;
+            object-fit: cover;
+        }
+
+        .image-selectable {
+            width: 100px;
+            height: 100px;
+            object-fit: cover;
+            margin: 5px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: border-color 0.3s ease;
+        }
+
+        .image-selectable.selected {
+            border-color: #007bff;
+        }
+
+        /* Added for better loading indicator */
+        .spinner-border {
+            width: 1.5rem;
+            height: 1.5rem;
+        }
+    </style>
+</head>
+
+<body class="bg-light">
+
+    <div class="container py-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2>Manage Categories</h2>
+            <button class="btn btn-primary" onclick="openEditModal()">Add Category</button>
+        </div>
+
+        <div id="categoryTableLoader" class="text-center my-4 d-none">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading categories...</span>
+            </div>
+            <p class="mt-2">Loading categories...</p>
+        </div>
+
+        <div id="alertContainer" class="position-fixed top-0 start-50 translate-middle-x p-3" style="z-index: 1050;">
+        </div>
+
+
+        <div class="table-responsive">
+            <table class="table table-bordered" id="categoryTable">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Name</th>
+                        <th>Description</th>
+                        <th>Image</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="categoryBody">
+                    <tr>
+                        <td colspan="5" class="text-center text-muted">No categories to display. Click "Add Category" to
+                            get started.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="modal fade" id="editModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <form id="editForm">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="editModalTitle">Edit Category</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="hidden" id="categoryId" />
+                        <div class="mb-2">
+                            <label for="name" class="form-label">Name</label>
+                            <input type="text" id="name" class="form-control" required minlength="3" />
+                        </div>
+                        <div class="mb-2">
+                            <label for="description" class="form-label">Description</label>
+                            <textarea id="description" class="form-control" rows="3" required minlength="10"></textarea>
+                        </div>
+                        <div class="mb-2 form-check">
+                            <input type="checkbox" id="status" class="form-check-input" />
+                            <label for="status" class="form-check-label">Active</label>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Image</label><br />
+                            <div id="selectedImage">
+                                <span class="text-muted">No image selected</span>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-outline-primary mt-2"
+                                onclick="openImageModal()">Select Image</button>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-success" id="saveCategoryBtn">Save Changes</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="imageModal" tabindex="-1">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content" style="max-height: 90vh;">
+
+                <div class="modal-header">
+                    <h5 class="modal-title">Select Image</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center px-3 pt-2">
+                    <div id="filterButtons" class="d-flex flex-wrap mb-2 mb-md-0"></div>
+                    <a href="upload-image.html" target="_blank" class="btn btn-success btn-sm">
+                        + Upload New Image
+                    </a>
+                </div>
+
+                <div id="imageGridLoader" class="text-center my-4 d-none">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading images...</span>
+                    </div>
+                    <p class="mt-2">Loading images...</p>
+                </div>
+
+                <div class="modal-body" style="overflow-y: auto; max-height: 65vh;">
+                    <div class="d-flex flex-wrap justify-content-start" id="imageGrid">
+                        <p class="text-muted text-center w-100">No images available. Upload some!</p>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn btn-primary" onclick="applySelectedImage()"
+                        data-bs-dismiss="modal">Apply</button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // --- Configuration ---
+        const categoryAPI = "http://localhost:5000/api/categories";
+        const imageAPI = "http://localhost:5000/api/images";
+
+        // --- Global State ---
+        let selectedImageUrl = "";
+        let allImages = []; // To store all fetched images for filtering
+
+        // --- DOM Elements ---
+        const categoryBody = document.getElementById("categoryBody");
+        const categoryTableLoader = document.getElementById("categoryTableLoader");
+        const editModal = new bootstrap.Modal(document.getElementById("editModal"));
+        const imageModal = new bootstrap.Modal(document.getElementById("imageModal"));
+        const editForm = document.getElementById("editForm");
+        const editModalTitle = document.getElementById("editModalTitle");
+        const categoryIdInput = document.getElementById("categoryId");
+        const nameInput = document.getElementById("name");
+        const descriptionInput = document.getElementById("description");
+        const statusCheckbox = document.getElementById("status");
+        const selectedImageContainer = document.getElementById("selectedImage");
+        const saveCategoryBtn = document.getElementById("saveCategoryBtn");
+        const imageGrid = document.getElementById("imageGrid");
+        const filterButtonsContainer = document.getElementById("filterButtons");
+        const imageGridLoader = document.getElementById("imageGridLoader");
+        const alertContainer = document.getElementById("alertContainer");
+
+        // --- Helper Functions ---
+
+        /**
+         * Displays a Bootstrap alert message.
+         * @param {string} message The message to display.
+         * @param {'success'|'danger'|'warning'|'info'} type The type of alert.
+         */
+        function showAlert(message, type = 'info') {
+            const alertDiv = document.createElement('div');
+            alertDiv.classList.add('alert', `alert-${type}`, 'alert-dismissible', 'fade', 'show', 'w-100');
+            alertDiv.setAttribute('role', 'alert');
+            alertDiv.innerHTML = `
+                <div>${message}</div>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            `;
+            alertContainer.appendChild(alertDiv);
+
+            // Automatically close after 5 seconds
+            setTimeout(() => {
+                bootstrap.Alert.getInstance(alertDiv)?.close();
+            }, 5000);
+        }
+
+        function showLoader(element, show = true) {
+            element.classList.toggle('d-none', !show);
+        }
+
+        /**
+         * Renders the currently selected image thumbnail in the edit modal.
+         */
+        function displaySelectedImage() {
+            selectedImageContainer.innerHTML = selectedImageUrl
+                ? `<img src="${selectedImageUrl}" class="image-thumb me-2 mb-2" alt="Selected Image" />`
+                : `<span class="text-muted">No image selected</span>`;
+        }
+
+        /**
+         * Clears all selected image states in the image modal.
+         */
+        function clearImageSelection() {
+            document.querySelectorAll(".image-selectable").forEach(i => i.classList.remove("selected"));
+        }
+
+        // --- Category Management Functions ---
+
+        /**
+         * Fetches and displays categories in the table.
+         */
+        async function fetchCategories() {
+            showLoader(categoryTableLoader, true);
+            categoryBody.innerHTML = ''; // Clear existing rows
+
+            try {
+                const res = await fetch(categoryAPI);
+                if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+                const data = await res.json();
+
+                if (data.length === 0) {
+                    categoryBody.innerHTML = `<tr><td colspan="5" class="text-center text-muted">No categories to display. Click "Add Category" to get started.</td></tr>`;
+                    return;
+                }
+
+                data.forEach((cat) => {
+                    const row = document.createElement("tr");
+                    row.innerHTML = `
+                        <td>${cat.name}</td>
+                        <td>${cat.description}</td>
+                        <td><img src="${cat.image || 'https://via.placeholder.com/50'}" class="image-thumb" alt="${cat.name} image" /></td>
+                        <td>${cat.status ? "✅ Active" : "❌ Inactive"}</td>
+                        <td>
+                            <button class="btn btn-sm btn-warning me-1" data-id="${cat._id}" data-action="edit">Edit</button>
+                            <button class="btn btn-sm btn-danger" data-id="${cat._id}" data-action="delete">Delete</button>
+                        </td>
+                    `;
+                    categoryBody.appendChild(row);
+                });
+            } catch (error) {
+                console.error("Error fetching categories:", error);
+                showAlert("Failed to load categories. Please try again.", "danger");
+                categoryBody.innerHTML = `<tr><td colspan="5" class="text-center text-danger">Error loading categories.</td></tr>`;
+            } finally {
+                showLoader(categoryTableLoader, false);
+            }
+        }
+
+        /**
+         * Opens the edit/add category modal.
+         * @param {object|null} category The category object to edit, or null for a new category.
+         */
+        function openEditModal(category = null) {
+            editForm.reset(); // Reset form fields
+            clearImageSelection(); // Clear any previous image selection from image modal
+
+            if (category) {
+                editModalTitle.textContent = "Edit Category";
+                categoryIdInput.value = category._id;
+                nameInput.value = category.name;
+                descriptionInput.value = category.description;
+                statusCheckbox.checked = category.status;
+                selectedImageUrl = category.image || "";
+            } else {
+                editModalTitle.textContent = "Add Category";
+                categoryIdInput.value = ""; // Clear ID for new category
+                selectedImageUrl = "";
+            }
+            displaySelectedImage();
+            editModal.show();
+        }
+
+        /**
+         * Handles category deletion.
+         * @param {string} id The ID of the category to delete.
+         */
+        async function deleteCategory(id) {
+            if (!confirm("Are you sure you want to delete this category? This action cannot be undone.")) {
+                return;
+            }
+            try {
+                const res = await fetch(`${categoryAPI}/${id}`, { method: "DELETE" });
+                if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+                showAlert("Category deleted successfully!", "success");
+                fetchCategories(); // Refresh the list
+            } catch (error) {
+                console.error("Error deleting category:", error);
+                showAlert("Failed to delete category. Please try again.", "danger");
+            }
+        }
+
+        /**
+         * Handles form submission for adding or updating a category.
+         */
+        editForm.addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            // Client-side validation
+            if (!nameInput.value.trim() || !descriptionInput.value.trim()) {
+                showAlert("Name and Description cannot be empty.", "warning");
+                return;
+            }
+            if (!selectedImageUrl) {
+                showAlert("Please select an image for the category.", "warning");
+                return;
+            }
+
+
+            saveCategoryBtn.disabled = true; // Disable button during submission
+            saveCategoryBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Saving...';
+
+            const id = categoryIdInput.value;
+            const method = id ? "PUT" : "POST";
+            const url = id ? `${categoryAPI}/${id}` : categoryAPI;
+
+            const categoryData = {
+                name: nameInput.value.trim(),
+                description: descriptionInput.value.trim(),
+                status: statusCheckbox.checked,
+                image: selectedImageUrl,
+            };
+
+            try {
+                const res = await fetch(url, {
+                    method: method,
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(categoryData),
+                });
+
+                if (!res.ok) {
+                    const errorData = await res.json();
+                    throw new Error(errorData.message || `HTTP error! status: ${res.status}`);
+                }
+
+                showAlert(`Category ${id ? 'updated' : 'added'} successfully!`, "success");
+                editModal.hide(); // Close modal
+                fetchCategories(); // Refresh the list
+
+            } catch (error) {
+                console.error(`Error ${id ? 'updating' : 'adding'} category:`, error);
+                showAlert(`Failed to ${id ? 'update' : 'add'} category: ${error.message}`, "danger");
+            } finally {
+                saveCategoryBtn.disabled = false; // Re-enable button
+                saveCategoryBtn.innerHTML = 'Save Changes';
+            }
+        });
+
+        // --- Image Selection Functions ---
+
+        /**
+         * Opens the image selection modal and fetches images.
+         */
+        async function openImageModal() {
+            showLoader(imageGridLoader, true);
+            imageGrid.innerHTML = ''; // Clear previous images
+
+            try {
+                const res = await fetch(imageAPI);
+                if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+                allImages = await res.json(); // Store for filtering
+
+                if (allImages.length === 0) {
+                    imageGrid.innerHTML = `<p class="text-muted text-center w-100">No images available. Upload some!</p>`;
+                    filterButtonsContainer.innerHTML = ''; // Clear filter buttons if no images
+                    return;
+                }
+
+                // Get unique image types and create filter buttons
+                const types = ["all", ...new Set(allImages.map(img => img.type))];
+                filterButtonsContainer.innerHTML = types
+                    .map(type => `<button class="btn btn-outline-secondary me-2 mb-2" data-filter="${type}">${type.toUpperCase()}</button>`)
+                    .join("");
+
+                // Add event listeners to filter buttons using delegation
+                filterButtonsContainer.addEventListener('click', (e) => {
+                    if (e.target.tagName === 'BUTTON' && e.target.dataset.filter) {
+                        filterImages(e.target.dataset.filter);
+                    }
+                });
+
+
+                filterImages("all"); // Initially show all images
+            } catch (error) {
+                console.error("Error fetching images:", error);
+                showAlert("Failed to load images for selection.", "danger");
+                imageGrid.innerHTML = `<p class="text-center text-danger w-100">Error loading images.</p>`;
+            } finally {
+                showLoader(imageGridLoader, false);
+            }
+            imageModal.show();
+        }
+
+        /**
+         * Filters and displays images in the grid based on type.
+         * @param {string} type The image type to filter by ('all' or specific type).
+         */
+        function filterImages(type) {
+            imageGrid.innerHTML = ""; // Clear current grid
+            clearImageSelection(); // Clear selection when filter changes
+
+            // Update active state of filter buttons
+            document.querySelectorAll('#filterButtons button').forEach(button => {
+                if (button.dataset.filter === type) {
+                    button.classList.add('active');
+                } else {
+                    button.classList.remove('active');
+                }
+            });
+
+            const filtered = type === "all" ? allImages : allImages.filter(img => img.type === type);
+
+            if (filtered.length === 0) {
+                imageGrid.innerHTML = `<p class="text-muted text-center w-100">No images found for this category.</p>`;
+                return;
+            }
+
+            filtered.forEach(img => {
+                const imgEl = document.createElement("img");
+                imgEl.src = img.url;
+                imgEl.alt = img.name || 'Image'; // Add alt text
+                imgEl.classList.add("image-selectable");
+                // Select image if it was already chosen
+                if (selectedImageUrl === img.url) {
+                    imgEl.classList.add("selected");
+                }
+
+                imgEl.addEventListener("click", () => {
+                    clearImageSelection(); // Remove 'selected' from all others
+                    imgEl.classList.add("selected"); // Add 'selected' to clicked image
+                    selectedImageUrl = img.url; // Update the global selected URL
+                });
+
+                imageGrid.appendChild(imgEl);
+            });
+        }
+
+        /**
+         * Applies the selected image from the modal to the edit form.
+         */
+        function applySelectedImage() {
+            displaySelectedImage();
+            // imageModal.hide() is handled by data-bs-dismiss on the button
+        }
+
+        // --- Initial Load and Event Delegation for Category Table ---
+        document.addEventListener("DOMContentLoaded", fetchCategories);
+
+        // Event delegation for Edit and Delete buttons on the category table
+        categoryBody.addEventListener('click', (e) => {
+            const target = e.target;
+            if (target.tagName === 'BUTTON') {
+                const categoryId = target.dataset.id;
+                const action = target.dataset.action;
+
+                if (categoryId && action) {
+                    if (action === 'edit') {
+                        // Find the category object from the allCategories array (if we fetched it and stored it)
+                        // For simplicity, re-fetching the category or passing stringified object from row could work.
+                        // Better: store categories in a global array and find by ID.
+                        // For now, let's assume `fetchCategories` data is sufficient and parse it back if needed.
+                        // Or, modify `fetchCategories` to store `data` globally like `allImages`.
+                        // For this example, let's make a quick fix to get the data if it's already rendered.
+                        // A more robust solution would be to maintain an `allCategories` array.
+                        const row = target.closest('tr');
+                        const name = row.cells[0].textContent;
+                        const description = row.cells[1].textContent;
+                        const image = row.cells[2].querySelector('img').src;
+                        const status = row.cells[3].textContent.includes('Active');
+
+                        openEditModal({
+                            _id: categoryId,
+                            name,
+                            description,
+                            image,
+                            status
+                        });
+
+                    } else if (action === 'delete') {
+                        deleteCategory(categoryId);
+                    }
+                }
+            }
+        });
+
+    </script>
+</body>
+
+</html>
