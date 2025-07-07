@@ -13,14 +13,31 @@ const orderSchema = new mongoose.Schema({
                 ref: "Product",
                 required: true
             },
-            name: { type: String, required: true },
-            quantity: { type: Number, required: true },
-            price: { type: Number, required: true }
+            name: {
+                type: String,
+                required: true,
+                trim: true
+            },
+            quantity: {
+                type: Number,
+                required: true,
+                min: 1
+            },
+            price: {
+                type: Number,
+                required: true,
+                min: 0
+            },
+            image: {
+                type: String,
+                default: ''
+            }
         }
     ],
     totalAmount: {
         type: Number,
-        required: true
+        required: true,
+        min: 0
     },
     paymentMethod: {
         type: String,
@@ -29,7 +46,7 @@ const orderSchema = new mongoose.Schema({
     },
     paymentStatus: {
         type: String,
-        enum: ['Pending', 'Paid', 'Failed'],
+        enum: ['Pending', 'Paid', 'Failed', 'Refunded'],
         default: 'Pending'
     },
     orderStatus: {
@@ -49,13 +66,43 @@ const orderSchema = new mongoose.Schema({
         type: String,
         default: null
     },
+
+    deliveryInstructions: {
+        type: [String],
+        default: []
+    },
     orderedAt: {
         type: Date,
         default: Date.now
     },
     deliveredAt: {
         type: Date
+    },
+    cancelledAt: {
+        type: Date
     }
-}, { timestamps: true });
+}, {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
+});
+
+// Add virtual for order summary
+orderSchema.virtual('summary').get(function () {
+    return `${this.items.length} items - ₹${this.totalAmount}`;
+});
+
+// Update timestamps when status changes
+orderSchema.pre('save', function (next) {
+    if (this.isModified('orderStatus')) {
+        if (this.orderStatus === 'Delivered' && !this.deliveredAt) {
+            this.deliveredAt = new Date();
+        }
+        if (this.orderStatus === 'Cancelled' && !this.cancelledAt) {
+            this.cancelledAt = new Date();
+        }
+    }
+    next();
+});
 
 module.exports = mongoose.model("Order", orderSchema);

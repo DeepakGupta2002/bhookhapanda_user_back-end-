@@ -7,13 +7,9 @@ const razorpayInstance = new Razorpay({
     key_id: process.env.RAZORPAY_KEY_ID,
     key_secret: process.env.RAZORPAY_SECRET
 });
-// console.log(razorpayInstance);
 
 // 📦 COD Order Controller
 exports.placeCodOrder = async (req, res) => {
-    // console.log(req.body);
-    // console.log(req.body);
-
     try {
         const { userId, paymentMethod } = req.body;
 
@@ -28,7 +24,8 @@ exports.placeCodOrder = async (req, res) => {
                 productId: item.productId._id,
                 name: item.productId.name,
                 quantity: item.quantity,
-                price: item.priceAtAddedTime || item.productId.sellingPrice
+                price: item.priceAtAddedTime || item.productId.sellingPrice,
+                image: (item.productId.images && item.productId.images.length > 0) ? item.productId.images[0] : ""
             }));
 
         const totalAmount = items.reduce(
@@ -41,7 +38,7 @@ exports.placeCodOrder = async (req, res) => {
             items,
             totalAmount,
             paymentMethod,
-            paymentStatus: "Pending", // COD
+            paymentStatus: "Pending",
             orderStatus: "Pending"
         });
 
@@ -54,9 +51,8 @@ exports.placeCodOrder = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
-// console.log("✅ Razorpay Key:", process.env.RAZORPAY_KEY_ID);
 
-// 
+// 💳 Create Razorpay Order
 exports.createRazorpayOrder = async (req, res) => {
     try {
         const userId = req.body.userId;
@@ -66,12 +62,14 @@ exports.createRazorpayOrder = async (req, res) => {
         }
 
         const items = cart.items
+
             .filter(item => item.selected && item.status === "active")
             .map(item => ({
                 productId: item.productId._id,
                 name: item.productId.name,
                 quantity: item.quantity,
-                price: item.priceAtAddedTime || item.productId.sellingPrice
+                price: item.priceAtAddedTime || item.productId.sellingPrice,
+                image: (item.productId.images && item.productId.images.length > 0) ? item.productId.images[0] : ""
             }));
 
         const totalAmount = items.reduce((acc, item) => acc + item.price * item.quantity, 0);
@@ -80,16 +78,13 @@ exports.createRazorpayOrder = async (req, res) => {
             return res.status(400).json({ message: "Invalid total amount" });
         }
 
-        console.log("✅ Razorpay Key:", process.env.RAZORPAY_KEY_ID);
-
         const razorpayOrder = await razorpayInstance.orders.create({
             amount: totalAmount * 100,
             currency: "INR",
             receipt: `order_rcptid_${Math.floor(Math.random() * 100000)}`
         });
 
-        console.log("✅ Razorpay Order Created:", razorpayOrder);
-
+        console.log(items);
         res.status(200).json({
             key: process.env.RAZORPAY_KEY_ID,
             razorpayOrderId: razorpayOrder.id,
@@ -100,12 +95,11 @@ exports.createRazorpayOrder = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("🔥 Razorpay Order Creation Error:", error);
         res.status(500).json({ error: error.message });
     }
-}
-    ;
-// / 🔐 Razorpay Verify and Save Order
+};
+
+// 🔐 Verify Razorpay & Save Order
 exports.verifyAndSaveOrder = async (req, res) => {
     try {
         const {
@@ -127,9 +121,17 @@ exports.verifyAndSaveOrder = async (req, res) => {
             return res.status(400).json({ message: "Invalid signature" });
         }
 
+        const sanitizedItems = items.map(item => ({
+            productId: item.productId,
+            name: item.name,
+            quantity: item.quantity,
+            price: item.price,
+            image: item.images || "" // ✅ Ensure image is saved
+        }));
+
         const newOrder = new Order({
             userId,
-            items,
+            items: sanitizedItems,
             totalAmount,
             paymentMethod: "Online",
             paymentStatus: "Paid",
@@ -144,17 +146,16 @@ exports.verifyAndSaveOrder = async (req, res) => {
 
         res.status(201).json({ message: "Online Order Placed", order: newOrder });
     } catch (error) {
-        console.log(error)
         res.status(500).json({ error: error.message });
     }
 };
-// 📦 Get All Orders with Full User Data
 
+// 📦 Get All Orders with Full User Data
 exports.getAllOrders = async (req, res) => {
     try {
         const orders = await Order.find({})
-            .sort({ createdAt: -1 }) // latest first
-            .populate("userId") // poora user document populate karega
+            .sort({ createdAt: -1 })
+            .populate("userId")
             .exec();
 
         if (orders.length === 0) {
@@ -166,4 +167,3 @@ exports.getAllOrders = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
-
